@@ -29,6 +29,10 @@
 
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Utilities/interface/StreamID.h"
+#include "SimDataFormats/GeneratorProducts/interface/HepMCProduct.h"
+#include "DataFormats/Common/interface/Handle.h"
+
+#include <iostream>
 
 //
 // class declaration
@@ -45,6 +49,8 @@ class inputHepMC : public edm::stream::EDFilter<> {
       virtual void beginStream(edm::StreamID) override;
       virtual bool filter(edm::Event&, const edm::EventSetup&) override;
       virtual void endStream() override;
+      edm::EDGetToken token_;
+
 
       //virtual void beginRun(edm::Run const&, edm::EventSetup const&) override;
       //virtual void endRun(edm::Run const&, edm::EventSetup const&) override;
@@ -65,10 +71,11 @@ class inputHepMC : public edm::stream::EDFilter<> {
 //
 // constructors and destructor
 //
-inputHepMC::inputHepMC(const edm::ParameterSet& iConfig)
+inputHepMC::inputHepMC(const edm::ParameterSet& iConfig):
+token_(consumes<edm::HepMCProduct>(edm::InputTag(iConfig.getUntrackedParameter("moduleLabel",std::string("source")),"")))
 {
    //now do what ever initialization is needed
-
+//  token_ = consumes<edm::HepMCProduct>( iConfig.getParameter<InputTag>(HepMCProduct) );
 }
 
 
@@ -90,7 +97,47 @@ bool
 inputHepMC::filter(edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
    using namespace edm;
+   using namespace std;
+   int nLeps = 0;
+   int nQuarks = 0;
+   Handle< HepMCProduct > evt;
+   iEvent.getByToken(token_, evt);
+   const HepMC::GenEvent * myGenEvent = evt->GetEvent();
+
+   for(HepMC::GenEvent::particle_const_iterator p = myGenEvent->particles_begin(); p != myGenEvent->particles_end(); ++p ){
+   int pId = abs((*p)->pdg_id());
+
+   if ( pId == 24 ){
+	for ( HepMC::GenVertex::particle_iterator dau  =(*p)->end_vertex()->particles_begin(HepMC::children); dau != (*p)->end_vertex()->particles_end(HepMC::children); ++dau ) {
+	cout << "--->>   " << (*dau)->pdg_id() << endl;
+
+		if ( abs((*dau)->pdg_id()) == 24 ){
+			for ( HepMC::GenVertex::particle_iterator ddau  =(*dau)->end_vertex()->particles_begin(HepMC::children); ddau != (*dau)->end_vertex()->particles_end(HepMC::children); ++ddau ) {
+				if (abs((*ddau)->pdg_id()) == 13 ){nLeps++;}
+                		if (abs((*ddau)->pdg_id()) == 1 ){nQuarks++;}
+                		if (abs((*ddau)->pdg_id()) == 2 ){nQuarks++;}
+                		if (abs((*ddau)->pdg_id()) == 3 ){nQuarks++;}
+                		if (abs((*ddau)->pdg_id()) == 4 ){nQuarks++;}
+                		if (abs((*ddau)->pdg_id()) == 5 ){nQuarks++;}
+                		if (abs((*ddau)->pdg_id()) == 6 ){nQuarks++;}
+			}
+		}
+
+	}
+
+   }
+   }
+
+   if (nLeps == 1 && nQuarks == 2){
+   cout << "We have an event!! :)" << endl;
    return true;
+   } else {
+   cout << "        We don't have event!! :(" << endl;
+   return false;
+   }
+
+
+
 #ifdef THIS_IS_AN_EVENT_EXAMPLE
    Handle<ExampleData> pIn;
    iEvent.getByLabel("example",pIn);
@@ -100,7 +147,6 @@ inputHepMC::filter(edm::Event& iEvent, const edm::EventSetup& iSetup)
    ESHandle<SetupData> pSetup;
    iSetup.get<SetupRecord>().get(pSetup);
 #endif
-   return true;
 }
 
 // ------------ method called once each stream before processing any runs, lumis or events  ------------
